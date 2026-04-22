@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Driftline Infinite - Deterministic Drift Racing Engine</title>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
   <style>
     * {
       margin: 0;
@@ -17,17 +19,9 @@
       font-family: Arial, sans-serif;
     }
 
-    canvas {
-      display: block;
-    }
-
-    #ui {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      color: white;
-      font-size: 14px;
-      pointer-events: none;
+    #game-container {
+      width: 100vw;
+      height: 100vh;
     }
 
     #controls {
@@ -39,6 +33,7 @@
       background: rgba(0, 0, 0, 0.5);
       padding: 15px;
       border-radius: 8px;
+      pointer-events: none;
     }
 
     #controls h3 {
@@ -81,60 +76,55 @@
       background: #ff6666;
     }
 
-    #start-screen {
+    #road-type {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      top: 60px;
+      right: 20px;
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      color: white;
-      z-index: 100;
-    }
-
-    #start-screen h1 {
-      font-size: 48px;
-      margin-bottom: 20px;
-      color: #ff4444;
-      text-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
-    }
-
-    #start-screen p {
-      font-size: 18px;
-      margin-bottom: 30px;
-      color: #ccc;
-    }
-
-    #start-screen button {
-      padding: 15px 40px;
-      font-size: 20px;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 15px;
       border-radius: 8px;
+    }
+
+    #road-type h3 {
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+
+    #road-type select {
+      padding: 8px;
+      border-radius: 4px;
+      border: none;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      cursor: pointer;
+    }
+
+    #debug-toggle {
+      position: absolute;
+      top: 140px;
+      right: 20px;
+    }
+
+    #debug-toggle button {
+      padding: 8px 16px;
+      border-radius: 4px;
       border: none;
       background: #ff4444;
       color: white;
       cursor: pointer;
       font-weight: bold;
-      transition: transform 0.2s;
     }
 
-    #start-screen button:hover {
-      transform: scale(1.05);
+    #debug-toggle button:hover {
       background: #ff6666;
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-
-  <div id="start-screen">
-    <h1>Driftline Infinite</h1>
-    <p>Deterministic Drift Racing Engine</p>
-    <button id="start-btn">Start Drifting</button>
-  </div>
+  <div id="game-container"></div>
 
   <div id="controls">
     <h3>Controls</h3>
@@ -148,14 +138,17 @@
     <button id="set-seed">Set Seed</button>
   </div>
 
-  <script type="module">
-    import { Game } from './src/game.js'
 
-    const canvas = document.getElementById('gameCanvas')
-    const startScreen = document.getElementById('start-screen')
-    const startBtn = document.getElementById('start-btn')
+  <div id="debug-toggle">
+    <button id="toggle-debug">Debug: OFF</button>
+  </div>
+
+  <script type="module">
+    import { DriftGame } from './src/main.js'
+
     const seedInput = document.getElementById('seed')
     const setSeedBtn = document.getElementById('set-seed')
+    const toggleDebugBtn = document.getElementById('toggle-debug')
 
     // Get seed from URL hash if present
     const hashSeed = window.location.hash.slice(1)
@@ -164,19 +157,32 @@
     }
 
     const seed = parseInt(seedInput.value) || 1337
-    const game = new Game(canvas, seed)
 
-    startBtn.addEventListener('click', () => {
-      startScreen.style.display = 'none'
-      game.start()
-    })
+    const config = {
+      type: Phaser.AUTO,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      parent: 'game-container',
+      backgroundColor: '#1a1a2e',
+      physics: false, // Disable physics - we use custom car physics
+      scene: [DriftGame],
+      scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+      }
+    }
+
+    const game = new Phaser.Game(config)
 
     setSeedBtn.addEventListener('click', () => {
       const newSeed = parseInt(seedInput.value) || 1337
-      game.setSeed(newSeed)
-      
-      // Update URL hash
       window.location.hash = newSeed
+      game.scene.scenes[0].setSeed(newSeed)
+    })
+
+    toggleDebugBtn.addEventListener('click', () => {
+      game.scene.scenes[0].toggleDebug()
+      toggleDebugBtn.textContent = game.scene.scenes[0].debugEnabled ? 'Debug: ON' : 'Debug: OFF'
     })
   </script>
 </body>

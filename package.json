@@ -1,0 +1,20 @@
+{
+  "name": "driftline-infinite",
+  "version": "1.0.0",
+  "description": "Deterministic drift racing engine using Phaser",
+  "main": "index.html",
+  "scripts": {
+    "test": "node tests/testRunner.js"
+  },
+  "keywords": [
+    "drift",
+    "racing",
+    "phaser",
+    "deterministic"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "phaser": "^3.70.0"
+  }
+}

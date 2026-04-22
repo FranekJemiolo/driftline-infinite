@@ -73,12 +73,34 @@ class RoadSystem {
   }
 
   sampleSurface(px, py, segment) {
-    if (!segment) return { grip: 1.0, normalX: 0, normalY: 1 }
+    if (!segment) return { grip: 1.0, normalX: 0, normalY: 1, onRoad: false }
+
+    const dx = px - segment.x
+    const dy = py - segment.y
+    const lateralOffset = dx * segment.nx + dy * segment.ny
+
+    const halfWidth = segment.width / 2
+    const onRoad = Math.abs(lateralOffset) <= halfWidth
+
+    const grip = onRoad ? 1.0 : 0.3
+
     return {
-      grip: 1.0,
+      grip,
       normalX: segment.nx,
-      normalY: segment.ny
+      normalY: segment.ny,
+      onRoad,
+      lateralOffset
     }
+  }
+
+  isOnRoad(px, py, segment) {
+    if (!segment) return false
+
+    const dx = px - segment.x
+    const dy = py - segment.y
+    const lateralOffset = dx * segment.nx + dy * segment.ny
+
+    return Math.abs(lateralOffset) <= segment.width / 2
   }
 }
 
@@ -262,12 +284,48 @@ function testRoadPhysicsIntegration() {
   console.log('✓ Road-physics integration test passed')
 }
 
+// Test 5: Road bounds detection
+function testRoadBoundsDetection() {
+  console.log('Testing road bounds detection...')
+
+  const road = new RoadSystem(1337)
+  road.generate(100)
+
+  const segment = road.segments[50]
+
+  // Test on-road position
+  const onRoad = road.isOnRoad(segment.x, segment.y, segment)
+  if (!onRoad) {
+    throw new Error('Center of road should be on-road')
+  }
+
+  // Test off-road position (beyond width)
+  const offRoad = road.isOnRoad(segment.x + segment.width, segment.y, segment)
+  if (offRoad) {
+    throw new Error('Position beyond road width should be off-road')
+  }
+
+  // Test surface grip reduction
+  const surfaceOnRoad = road.sampleSurface(segment.x, segment.y, segment)
+  if (surfaceOnRoad.grip !== 1.0) {
+    throw new Error('On-road grip should be 1.0')
+  }
+
+  const surfaceOffRoad = road.sampleSurface(segment.x + segment.width, segment.y, segment)
+  if (surfaceOffRoad.grip !== 0.3) {
+    throw new Error('Off-road grip should be 0.3')
+  }
+
+  console.log('✓ Road bounds detection test passed')
+}
+
 // Run all tests
 try {
   testRoadDeterminism()
   testPhysicsDeterminism()
   testPhysicsStability()
   testRoadPhysicsIntegration()
+  testRoadBoundsDetection()
   
   console.log('\n✅ All smoke tests passed!')
   process.exit(0)

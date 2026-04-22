@@ -48,8 +48,8 @@ export class InputSystem {
     let handbrake = 0
 
     // Keyboard input
-    if (this.keys['ArrowLeft'] || this.keys['KeyA']) steer -= 1
-    if (this.keys['ArrowRight'] || this.keys['KeyD']) steer += 1
+    if (this.keys['ArrowLeft'] || this.keys['KeyA']) steer += 1
+    if (this.keys['ArrowRight'] || this.keys['KeyD']) steer -= 1
     if (this.keys['ArrowUp'] || this.keys['KeyW']) throttle = 1
     if (this.keys['ArrowDown'] || this.keys['KeyS']) brake = 1
     if (this.keys['Space']) handbrake = 1

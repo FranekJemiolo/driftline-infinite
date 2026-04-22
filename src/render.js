@@ -6,7 +6,6 @@ export class RenderSystem {
   constructor(canvas) {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
-    
     this.camera = {
       x: 0,
       y: 0,
@@ -15,9 +14,18 @@ export class RenderSystem {
       angle: 0,
       targetAngle: 0
     }
-
+    this.zoom = 1.0
     this.skidMarks = []
     this.particles = []
+    this.resize()
+
+    // Mouse wheel zoom
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault()
+      const zoomSpeed = 0.001
+      this.zoom -= e.deltaY * zoomSpeed
+      this.zoom = Math.max(0.25, Math.min(2.0, this.zoom))
+    }, { passive: false })
   }
 
   resize() {
@@ -59,9 +67,14 @@ export class RenderSystem {
     const rx = dx * cos - dy * sin
     const ry = dx * sin + dy * cos
 
+    // Apply zoom scale
+    const zoomedX = rx * this.zoom
+    const zoomedY = ry * this.zoom
+
+    // Invert Y axis so positive world Y moves up on screen
     return {
-      x: cx + rx,
-      y: cy + ry
+      x: cx + zoomedX,
+      y: cy - zoomedY
     }
   }
 
@@ -73,48 +86,49 @@ export class RenderSystem {
   renderRoad(road) {
     const ctx = this.ctx
 
-    // Render road segments
-    ctx.strokeStyle = '#333'
-    ctx.lineWidth = road.width
+    if (road.segments.length < 2) return
 
-    ctx.beginPath()
-    for (let i = 0; i < road.segments.length; i++) {
-      const s = road.segments[i]
-      const screen = this.worldToScreen(s.x, s.y)
+    // Draw road as connected lines
+    for (let i = 0; i < road.segments.length - 1; i++) {
+      const seg = road.segments[i]
+      const nextSeg = road.segments[i + 1]
 
-      if (i === 0) {
-        ctx.moveTo(screen.x, screen.y)
-      } else {
-        ctx.lineTo(screen.x, screen.y)
-      }
-    }
-    ctx.stroke()
+      const screen = this.worldToScreen(seg.x, seg.y)
+      const nextScreen = this.worldToScreen(nextSeg.x, nextSeg.y)
 
-    // Render lane markings
-    ctx.strokeStyle = '#fff'
-    ctx.lineWidth = 2
-    ctx.setLineDash([20, 20])
-
-    for (let lane = 0; lane < road.laneCount - 1; lane++) {
-      const offset = road.getLaneOffset(lane + 0.5)
-
+      // Draw road surface as thick line
+      ctx.strokeStyle = seg.isParkingLot ? '#555' : '#444'
+      ctx.lineWidth = seg.width * this.zoom
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
       ctx.beginPath()
-      for (let i = 0; i < road.segments.length; i++) {
-        const s = road.segments[i]
-        const lx = s.x + s.nx * offset
-        const ly = s.y + s.ny * offset
-        const screen = this.worldToScreen(lx, ly)
-
-        if (i === 0) {
-          ctx.moveTo(screen.x, screen.y)
-        } else {
-          ctx.lineTo(screen.x, screen.y)
-        }
-      }
+      ctx.moveTo(screen.x, screen.y)
+      ctx.lineTo(nextScreen.x, nextScreen.y)
       ctx.stroke()
-    }
 
-    ctx.setLineDash([])
+      // Draw lane markers
+      if (seg.lanes > 1) {
+        ctx.strokeStyle = seg.isParkingLot ? '#777' : '#fff'
+        ctx.lineWidth = 2 * this.zoom
+        ctx.setLineDash([10 * this.zoom, 10 * this.zoom])
+
+        const laneWidth = seg.width / seg.lanes
+        for (let j = 1; j < seg.lanes; j++) {
+          const offset = (j - seg.lanes / 2) * laneWidth
+          const laneX1 = screen.x + offset * seg.nx * this.zoom
+          const laneY1 = screen.y + offset * seg.ny * this.zoom
+          const laneX2 = nextScreen.x + offset * nextSeg.nx * this.zoom
+          const laneY2 = nextScreen.y + offset * nextSeg.ny * this.zoom
+
+          ctx.beginPath()
+          ctx.moveTo(laneX1, laneY1)
+          ctx.lineTo(laneX2, laneY2)
+          ctx.stroke()
+        }
+
+        ctx.setLineDash([])
+      }
+    }
   }
 
   renderCar(car, carImage) {
@@ -123,14 +137,21 @@ export class RenderSystem {
 
     ctx.save()
     ctx.translate(screen.x, screen.y)
-    ctx.rotate(-car.angle - this.camera.angle)
+    ctx.rotate(-car.angle)
 
-    if (carImage) {
+    if (carImage && carImage.complete && carImage.naturalWidth > 0) {
       ctx.drawImage(carImage, -20, -40, 40, 80)
     } else {
-      // Fallback: draw car as rectangle
+      // Fallback: draw car as rectangle with border for visibility
       ctx.fillStyle = '#ff4444'
       ctx.fillRect(-20, -40, 40, 80)
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 2
+      ctx.strokeRect(-20, -40, 40, 80)
+      
+      // Add direction indicator
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(-5, -45, 10, 10)
     }
 
     ctx.restore()
@@ -189,7 +210,7 @@ export class RenderSystem {
     })
   }
 
-  renderUI(car, score) {
+  renderUI(car, score, onRoad = true, gameOver = false, debugInfo = null) {
     const ctx = this.ctx
 
     // Speed display
@@ -206,5 +227,81 @@ export class RenderSystem {
     const driftAngle = car.drift * (180 / Math.PI)
     ctx.fillStyle = car.drifting ? '#ff4444' : '#666'
     ctx.fillText(`Drift: ${Math.floor(driftAngle)}°`, 20, 100)
+
+    // Off-road warning
+    if (!onRoad) {
+      ctx.fillStyle = '#ff4444'
+      ctx.font = 'bold 20px Arial'
+      ctx.fillText('OFF ROAD!', 20, 130)
+    }
+
+    // Debug info
+    if (debugInfo && debugInfo.enabled) {
+      ctx.fillStyle = '#00ff00'
+      ctx.font = '14px monospace'
+      const debugX = 20
+      let debugY = 160
+
+      // Input highlighting
+      const throttleColor = debugInfo.throttle > 0.1 ? '#00ff00' : '#666'
+      const brakeColor = debugInfo.brake > 0.1 ? '#ff0000' : '#666'
+      const handbrakeColor = debugInfo.handbrake ? '#ff0000' : '#666'
+      const steerColor = Math.abs(debugInfo.steer) > 0.1 ? '#ffff00' : '#666'
+
+      const lines = [
+        `Speed: ${speed.toFixed(1)} km/h (${(speed / 3.6).toFixed(1)} m/s)`,
+        `Forward Vel: ${debugInfo.vF.toFixed(2)} m/s`,
+        `Lateral Vel: ${debugInfo.vL.toFixed(2)} m/s`,
+        `Slip Angle: ${(debugInfo.slip * 180 / Math.PI).toFixed(1)}°`,
+        `Throttle: ${debugInfo.throttle.toFixed(2)}`,
+        `Brake: ${debugInfo.brake.toFixed(2)}`,
+        `Handbrake: ${debugInfo.handbrake ? 'ON' : 'OFF'}`,
+        `Steer: ${debugInfo.steer.toFixed(2)}`,
+        `Grip: ${(debugInfo.grip * 100).toFixed(0)}%`,
+        `Engine Force: ${debugInfo.engineForce.toFixed(2)} N`,
+        `Brake Force: ${debugInfo.brakeForce.toFixed(2)} N`,
+        `Yaw Rate: ${(debugInfo.yawRate * 180 / Math.PI).toFixed(1)}°/s`,
+        `Car Angle: ${(car.angle * 180 / Math.PI).toFixed(1)}°`,
+        `Car Pos: (${car.x.toFixed(1)}, ${car.y.toFixed(1)})`
+      ]
+
+      for (const line of lines) {
+        ctx.fillText(line, debugX, debugY)
+        debugY += 20
+      }
+
+      // Input indicators
+      ctx.font = 'bold 16px monospace'
+      const inputY = 440
+      ctx.fillStyle = throttleColor
+      ctx.fillText(`W/↑`, debugX, inputY)
+      ctx.fillStyle = brakeColor
+      ctx.fillText(`S/↓`, debugX + 50, inputY)
+      ctx.fillStyle = handbrakeColor
+      ctx.fillText(`SPACE`, debugX + 100, inputY)
+      ctx.fillStyle = steerColor
+      ctx.fillText(`A/←`, debugX + 160, inputY)
+      ctx.fillText(`D/→`, debugX + 210, inputY)
+    }
+
+    // Game over screen
+    if (gameOver) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+
+      ctx.fillStyle = '#ff4444'
+      ctx.font = 'bold 48px Arial'
+      ctx.textAlign = 'center'
+      ctx.fillText('GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 30)
+
+      ctx.fillStyle = '#fff'
+      ctx.font = '24px Arial'
+      ctx.fillText(`Final Score: ${Math.floor(score)}`, this.canvas.width / 2, this.canvas.height / 2 + 20)
+
+      ctx.fillStyle = '#ccc'
+      ctx.font = '18px Arial'
+      ctx.fillText('Refresh to restart', this.canvas.width / 2, this.canvas.height / 2 + 60)
+      ctx.textAlign = 'left'
+    }
   }
 }

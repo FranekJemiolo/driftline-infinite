@@ -10,6 +10,7 @@ export class AudioSystem {
     this.tireNoise = null
     this.tireGain = null
     this.initialized = false
+    this.muted = true
   }
 
   init() {
@@ -57,7 +58,7 @@ export class AudioSystem {
   }
 
   update(carState) {
-    if (!this.initialized) return
+    if (!this.initialized || this.muted) return
 
     // Resume context if suspended (browser policy)
     if (this.ctx.state === 'suspended') {
@@ -75,6 +76,15 @@ export class AudioSystem {
     // Tire squeal based on slip angle
     const tireVol = carState.drifting ? Math.min(0.5, carState.slip * 0.5) : 0
     this.tireGain.gain.setTargetAtTime(tireVol, this.ctx.currentTime, 0.05)
+  }
+
+  toggleMute() {
+    this.muted = !this.muted
+    // Initialize audio context if not already initialized
+    if (!this.initialized) {
+      this.init()
+    }
+    return this.muted
   }
 
   playCollision() {
