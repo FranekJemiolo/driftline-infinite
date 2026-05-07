@@ -1,7 +1,7 @@
 {
   "name": "driftline-infinite",
   "version": "1.0.0",
-  "description": "Deterministic drift racing engine using Phaser",
+  "description": "An endless drift racing game with realistic physics. Roads are generated from seeds so you can share the same track with friends.",
   "main": "index.html",
   "scripts": {
     "test": "node tests/testRunner.js"
