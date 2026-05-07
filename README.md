@@ -46,6 +46,73 @@ The engine is built with strict separation of concerns, following a deterministi
 INPUT → CONTROL MIXER → ROAD SAMPLE → PHYSICS STEP → WORLD UPDATE → SCORING → CAMERA → AUDIO → RENDER → UI
 ```
 
+### Architecture Diagram
+
+```mermaid
+graph TD
+    A[Input Manager] --> B[Control Mixer]
+    B --> C[Road Sampler]
+    C --> D[Physics Engine]
+    D --> E[World Updater]
+    E --> F[Scoring System]
+    E --> G[Camera System]
+    E --> H[Audio Engine]
+    E --> I[Renderer]
+    I --> J[UI Layer]
+    
+    subgraph "Input Sources"
+        A --> K[Keyboard]
+        A --> L[Touch]
+        A --> M[Gamepad]
+    end
+    
+    subgraph "Road System"
+        C --> N[Road Generator]
+        N --> O[Spline Calculator]
+        N --> P[Seed RNG]
+        P --> Q[URL Hash Seed]
+    end
+    
+    subgraph "Physics Components"
+        D --> R[Car Physics Matter]
+        R --> S[RWD Drift Model]
+        R --> T[Slip Angle Simulation]
+        R --> U[Tire Forces]
+    end
+    
+    subgraph "Scoring Components"
+        F --> V[Drift Angle Calculator]
+        F --> W[Speed Multiplier]
+        F --> X[Combo System]
+        F --> Y[Total Score]
+    end
+    
+    subgraph "Camera System"
+        G --> Z[Velocity Lookahead]
+        G --> AA[Smooth Interpolation]
+        G --> BB[Follow Target]
+    end
+    
+    subgraph "Audio Components"
+        H --> CC[Engine Audio]
+        H --> DD[Tire Audio]
+        H --> EE[Procedural Generator]
+    end
+    
+    subgraph "Visual Effects"
+        I --> FF[Skid Marks]
+        I --> GG[Tire Smoke]
+        I --> HH[Drift Indicators]
+    end
+    
+    subgraph "UI Elements"
+        J --> II[Score Display]
+        J --> JJ[Speed Display]
+        J --> KK[Drift Indicator]
+        J --> LL[Combo Counter]
+    end
+```
+
 #### RoadSystem (`src/road.js`)
 Pure geometry system for procedural road generation:
 - Deterministic spline generation from seed using Mulberry32 RNG
